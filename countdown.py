@@ -86,9 +86,9 @@ def parse_ical_to_summary_countdown(ical_url, plain_text=False, show_dates=False
                 date_info = f" ({start_date_str} to {end_date_str})" if show_dates else ""
                 if days_remaining >= 0:
                     if plain_text:
-                        return f"- {summary} - {location} (in {days_remaining} days){date_info}\n"
+                        return f"{days_remaining} days until {summary} - {location} {date_info}\n"
                     else:
-                        return f"- **{summary}** - {location} (in {days_remaining} days){date_info}\n"
+                        return f"- {days_remaining} days until **{summary}** - {location} ({date_info}\n"
                 else:
                     return None
             else:
