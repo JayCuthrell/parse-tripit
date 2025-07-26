@@ -11,5 +11,6 @@ pip3 install -U datetime
 pip3 install -U python-dotenv
 pip3 install -U urllib3
 pip3 install -U feedparser 
-pip3 install -U icalendar 
+pip3 install -U icalendar
+pip3 install -U pytz
 pip3 list
