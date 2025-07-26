@@ -11,3 +11,10 @@ Options:
   --report_due <days> Subtract <days> from the current date for countdown.
   --csv               Output in CSV format for importing into Asana.
 ```
+
+Also to make an ics that can be parsed by Outlook 
+
+```
+$ python3 tranform.py 
+usage: tranform.py [-h] [-o OUTPUT_PATH] tripit_url
+```
