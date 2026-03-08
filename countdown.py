@@ -3,6 +3,8 @@ from icalendar import Calendar
 from datetime import datetime, date, timedelta
 import sys
 import csv
+import os
+from dotenv import load_dotenv
 
 def calculate_days_remaining(event_start, subtract_days=0):
     today = date.today()
@@ -67,6 +69,43 @@ def parse_ical_to_asana_csv(ical_url, report_due_offset=0):
                 ])
 
         return asana_csv_data
+
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching iCal data: {e}"
+    except Exception as e:
+        return f"An error occurred: {e}"
+
+def parse_ical_to_csv(ical_url, report_due_offset=0):
+    try:
+        response = requests.get(ical_url)
+        response.raise_for_status()
+        cal = Calendar.from_ical(response.content)
+        csv_data = [["Task", "Due Date", "Notes"]]  # Basic CSV Header
+
+        for event in cal.walk('VEVENT'):
+            name = event.get('SUMMARY', '').replace("PLACEHOLDER ONLY:", "").strip()
+            start = event.get('DTSTART').dt
+            end = event.get('DTEND').dt
+            location = event.get('LOCATION', '')
+            url = event.get('URL', '')
+
+            due_date_str = format_date_asana(end)
+            notes = location
+            if url:
+                if notes:
+                    notes += f" | {url}"
+                else:
+                    notes = url
+
+            days_remaining = calculate_days_remaining(start, report_due_offset)
+            if days_remaining >= 0:
+                csv_data.append([
+                    name,  # Task
+                    due_date_str,  # Due Date
+                    notes  # Notes
+                ])
+
+        return csv_data
 
     except requests.exceptions.RequestException as e:
         return f"Error fetching iCal data: {e}"
@@ -144,35 +183,44 @@ def parse_ical_to_summary_countdown_general(ical_url, plain_text=False, show_dat
         return f"An error occurred: {e}"
 
 if __name__ == "__main__":
-    ical_url = ""
+    load_dotenv()
+    ical_url = os.getenv('TRIPIT_ICAL', '')
     plain_text_output = False
     show_dates_output = False
     report_due_offset = 0
     output_format = "text"
 
-    if len(sys.argv) > 1:
-        ical_url = sys.argv[1]
-        i = 2
-        while i < len(sys.argv):
-            if sys.argv[i] == "--plain":
-                plain_text_output = True
-            elif sys.argv[i] == "--dates":
-                show_dates_output = True
-            elif sys.argv[i] == "--report_due" and i + 1 < len(sys.argv):
-                try:
-                    report_due_offset = int(sys.argv[i + 1])
-                    i += 1
-                except ValueError:
-                    print("Error: --report_due argument must be an integer.")
-            elif sys.argv[i] == "--csv":
-                output_format = "csv"
-            elif sys.argv[i] == "--asana_csv":
-                output_format = "asana_csv"
-            i += 1
-    else:
-        print("Usage: python your_script_name.py <ical_url> [options]")
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg == "--plain":
+            plain_text_output = True
+        elif arg == "--dates":
+            show_dates_output = True
+        elif arg == "--report_due" and i + 1 < len(sys.argv):
+            try:
+                report_due_offset = int(sys.argv[i + 1])
+                i += 1
+            except ValueError:
+                print("Error: --report_due argument must be an integer.")
+                sys.exit(1)
+        elif arg == "--csv":
+            output_format = "csv"
+        elif arg == "--asana_csv":
+            output_format = "asana_csv"
+        elif not arg.startswith("--"):
+            # Assume it's the ical_url
+            ical_url = arg
+        else:
+            print(f"Unknown option: {arg}")
+            sys.exit(1)
+        i += 1
+
+    if not ical_url:
+        print("Usage: python your_script_name.py [ical_url] [options]")
+        print("\nIf no ical_url is provided, it will use the TRIPIT_ICAL environment variable from .env file.")
         print("\nOptions:")
-        print("  <ical_url>          The URL of the .ics file to process (required).")
+        print("  ical_url           The URL of the .ics file to process (optional if set in .env).")
         print("  --plain             Output in plain text format (no Markdown).")
         print("  --dates             Include the start and end dates in the output.")
         print("  --report_due <days> Subtract <days> from the current date for countdown.")
