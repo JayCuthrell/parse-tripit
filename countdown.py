@@ -157,25 +157,61 @@ def format_summary_countdown_general(event, plain_text=False, show_dates=False, 
         else:
             return f"- **{summary}** - {location} (Date/Time Unknown)\n"
 
-def parse_ical_to_summary_countdown_general(ical_url, plain_text=False, show_dates=False, report_due_offset=0):
+def format_summary_updates(event):
+    summary = event.get('SUMMARY', '').replace("PLACEHOLDER ONLY:", "").strip()
+    location = event.get('LOCATION', 'No Location Specified')
+    start = event.get('DTSTART').dt
+
+    if isinstance(start, datetime) or isinstance(start, date):
+        days_remaining = calculate_days_remaining_general(start, 0)
+        if days_remaining >= 0:
+            date_str = start.strftime("%b %d")
+            return f"- {summary} in {location} ({date_str})\n"
+        else:
+            return None
+    else:
+        return f"- {summary} in {location} (Date Unknown)\n"
+
+def parse_ical_to_updates(ical_url):
     try:
         response = requests.get(ical_url)
         response.raise_for_status()
         cal = Calendar.from_ical(response.content)
-        heading = "Upcoming Events:\n\n" if plain_text else "### Upcoming Events:\n\n"
-        summary_output = heading
+        updates_output = ""
         upcoming_events = False
 
         for event in cal.walk('VEVENT'):
-            formatted_summary = format_summary_countdown_general(event, plain_text, show_dates, report_due_offset)
+            formatted_summary = format_summary_updates(event)
             if formatted_summary:
-                summary_output += formatted_summary
+                updates_output += formatted_summary
                 upcoming_events = True
 
         if not upcoming_events:
-            summary_output += "No upcoming events found.\n"
+            updates_output += "No upcoming events found.\n"
 
-        return summary_output
+        return updates_output
+
+    except requests.exceptions.RequestException as e:
+        return f"Error fetching iCal data: {e}"
+    except Exception as e:
+        return f"An error occurred: {e}"
+
+def parse_ical_to_summary_countdown(ical_url, plain_text=False, show_dates=False, report_due_offset=0):
+    try:
+        response = requests.get(ical_url)
+        response.raise_for_status()
+        cal = Calendar.from_ical(response.content)
+        output = ""
+
+        for event in cal.walk('VEVENT'):
+            formatted = format_summary_countdown_general(event, plain_text, show_dates, report_due_offset)
+            if formatted:
+                output += formatted
+
+        if not output:
+            output = "No upcoming events found.\n"
+
+        return output
 
     except requests.exceptions.RequestException as e:
         return f"Error fetching iCal data: {e}"
@@ -190,7 +226,12 @@ if __name__ == "__main__":
     report_due_offset = 0
     output_format = "text"
 
+    # Parse arguments
     i = 1
+    if len(sys.argv) > 1 and not sys.argv[1].startswith('--'):
+        ical_url = sys.argv[1]
+        i = 2
+
     while i < len(sys.argv):
         arg = sys.argv[i]
         if arg == "--plain":
@@ -208,9 +249,8 @@ if __name__ == "__main__":
             output_format = "csv"
         elif arg == "--asana_csv":
             output_format = "asana_csv"
-        elif not arg.startswith("--"):
-            # Assume it's the ical_url
-            ical_url = arg
+        elif arg == "--updates":
+            output_format = "updates"
         else:
             print(f"Unknown option: {arg}")
             sys.exit(1)
@@ -226,6 +266,7 @@ if __name__ == "__main__":
         print("  --report_due <days> Subtract <days> from the current date for countdown.")
         print("  --csv               Output in basic CSV format (Task, Due Date, Notes).")
         print("  --asana_csv         Output in CSV format for Asana import.")
+        print("  --updates           Output in updates format (Event in Location (Mon DD)).")
         sys.exit(1)
 
     if ical_url:
@@ -243,6 +284,9 @@ if __name__ == "__main__":
             else:
                 writer = csv.writer(sys.stdout)
                 writer.writerows(asana_csv_data)
+        elif output_format == "updates":
+            updates_output = parse_ical_to_updates(ical_url)
+            print(updates_output)
         else:
-            markdown_output = parse_ical_to_summary_countdown_general(ical_url, plain_text_output, show_dates_output, report_due_offset)
-            print(markdown_output)
+            summary_output = parse_ical_to_summary_countdown(ical_url, plain_text_output, show_dates_output, report_due_offset)
+            print(summary_output)
