@@ -85,6 +85,17 @@ If no `ical_url` is provided, the script will use the `TRIPIT_ICAL` environment 
   python3 ./countdown.py https://example.com/calendar.ics --plain --dates
   ```
 
+## Transforming an iCal feed for Outlook
+
+If you need an iCal file that is more compatible with Outlook (e.g., ensures datetimes are in UTC), use `tranform.py`.
+
+```bash
+python3 tranform.py <tripit_ical_url> -o output.ics
+```
+
+- `<tripit_ical_url>`: Your TripIt private iCal (same format as `TRIPIT_ICAL`).
+- `-o output.ics`: Optional output path (defaults to `correct.ics`).
+
 ## Environment Variables
 
 - `TRIPIT_ICAL`: URL of the TripIt iCal feed. If not provided as a command-line argument, this is used.
