@@ -157,6 +157,24 @@ def format_summary_countdown_general(event, plain_text=False, show_dates=False, 
         else:
             return f"- **{summary}** - {location} (Date/Time Unknown)\n"
 
+
+def format_summary_business(event, report_due_offset=0):
+    """Business-style formatting: "Week of Month DD, YYYY: City (Event title)"""
+    summary = event.get('SUMMARY', '').replace("PLACEHOLDER ONLY:", "").strip()
+    location = event.get('LOCATION', '')
+    start = event.get('DTSTART').dt
+
+    if isinstance(start, datetime) or isinstance(start, date):
+        days_remaining = calculate_days_remaining_general(start, report_due_offset)
+        if days_remaining < 0:
+            return None
+        # Use full date with year for the "Week of" label
+        start_with_year = format_date_with_year_general(start)
+        # Extract city from location (take text before first comma)
+        city = location.split(',')[0].strip() if location else 'Unknown Location'
+        return f"Week of {start_with_year}: {city} ({summary})\n"
+    return None
+
 def format_summary_updates(event):
     summary = event.get('SUMMARY', '').replace("PLACEHOLDER ONLY:", "").strip()
     location = event.get('LOCATION', 'No Location Specified')
@@ -196,7 +214,7 @@ def parse_ical_to_updates(ical_url):
     except Exception as e:
         return f"An error occurred: {e}"
 
-def parse_ical_to_summary_countdown(ical_url, plain_text=False, show_dates=False, report_due_offset=0):
+def parse_ical_to_summary_countdown(ical_url, plain_text=False, show_dates=False, report_due_offset=0, business=False):
     try:
         response = requests.get(ical_url)
         response.raise_for_status()
@@ -204,7 +222,10 @@ def parse_ical_to_summary_countdown(ical_url, plain_text=False, show_dates=False
         output = ""
 
         for event in cal.walk('VEVENT'):
-            formatted = format_summary_countdown_general(event, plain_text, show_dates, report_due_offset)
+            if business:
+                formatted = format_summary_business(event, report_due_offset)
+            else:
+                formatted = format_summary_countdown_general(event, plain_text, show_dates, report_due_offset)
             if formatted:
                 output += formatted
 
@@ -223,6 +244,7 @@ if __name__ == "__main__":
     ical_url = os.getenv('TRIPIT_ICAL', '')
     plain_text_output = False
     show_dates_output = False
+    business_output = False
     report_due_offset = 0
     output_format = "text"
 
@@ -238,6 +260,8 @@ if __name__ == "__main__":
             plain_text_output = True
         elif arg == "--dates":
             show_dates_output = True
+        elif arg == "--business":
+            business_output = True
         elif arg == "--report_due" and i + 1 < len(sys.argv):
             try:
                 report_due_offset = int(sys.argv[i + 1])
@@ -267,6 +291,7 @@ if __name__ == "__main__":
         print("  --csv               Output in basic CSV format (Task, Due Date, Notes).")
         print("  --asana_csv         Output in CSV format for Asana import.")
         print("  --updates           Output in updates format (Event in Location (Mon DD)).")
+        print("  --business          Output in business format: Week of Month DD, YYYY: City (Event title)")
         sys.exit(1)
 
     if ical_url:
@@ -288,5 +313,8 @@ if __name__ == "__main__":
             updates_output = parse_ical_to_updates(ical_url)
             print(updates_output)
         else:
-            summary_output = parse_ical_to_summary_countdown(ical_url, plain_text_output, show_dates_output, report_due_offset)
+            if business_output:
+                summary_output = parse_ical_to_summary_countdown(ical_url, plain_text_output, show_dates_output, report_due_offset, business=True)
+            else:
+                summary_output = parse_ical_to_summary_countdown(ical_url, plain_text_output, show_dates_output, report_due_offset)
             print(summary_output)
